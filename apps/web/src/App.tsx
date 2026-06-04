@@ -1,19 +1,108 @@
-import { Button } from "@workspace/ui/components/button"
+import * as React from 'react'
+import { useProjects } from './hooks/useProjects'
+import { useLibrary } from './hooks/useLibrary'
+import { Dashboard } from './components/Dashboard'
+import { ProjectDetail } from './components/ProjectDetail'
+import { LibraryDashboard } from './components/LibraryDashboard'
+import { StatsDashboard } from './components/StatsDashboard'
+
+export type AppView = 'dashboard' | 'project-detail' | 'library' | 'stats'
 
 export function App() {
+  const [view, setView] = React.useState<AppView>('dashboard')
+  const [selectedProjectId, setSelectedProjectId] = React.useState<string | null>(null)
+
+  const {
+    projects,
+    createProject,
+    updateProject,
+    deleteProject,
+    addTodoList,
+    deleteTodoList,
+    addTodoItem,
+    toggleTodoItem,
+    deleteTodoItem,
+  } = useProjects()
+
+  const {
+    library,
+    addLanguage, updateLanguage, deleteLanguage,
+    addFramework, updateFramework, deleteFramework,
+    addBadge, updateBadge, deleteBadge,
+  } = useLibrary()
+
+  const selectedProject = selectedProjectId ? projects.find((p) => p.id === selectedProjectId) : null
+
+  const goToProject = (id: string) => {
+    setSelectedProjectId(id)
+    setView('project-detail')
+  }
+
+  const goToDashboard = () => {
+    setView('dashboard')
+    setSelectedProjectId(null)
+  }
+
+  const handleDeleteProject = (id: string) => {
+    deleteProject(id)
+    if (selectedProjectId === id) goToDashboard()
+  }
+
+  if (view === 'project-detail' && selectedProject) {
+    return (
+      <ProjectDetail
+        project={selectedProject}
+        library={library}
+        onBack={goToDashboard}
+        onUpdateProject={updateProject}
+        onDeleteProject={handleDeleteProject}
+        onAddTodoList={addTodoList}
+        onDeleteTodoList={deleteTodoList}
+        onAddTodoItem={addTodoItem}
+        onToggleTodoItem={toggleTodoItem}
+        onDeleteTodoItem={deleteTodoItem}
+      />
+    )
+  }
+
+  if (view === 'library') {
+    return (
+      <LibraryDashboard
+        library={library}
+        projects={projects}
+        onAddLanguage={addLanguage}
+        onUpdateLanguage={updateLanguage}
+        onDeleteLanguage={deleteLanguage}
+        onAddFramework={addFramework}
+        onUpdateFramework={updateFramework}
+        onDeleteFramework={deleteFramework}
+        onAddBadge={addBadge}
+        onUpdateBadge={updateBadge}
+        onDeleteBadge={deleteBadge}
+        onNavigate={setView}
+      />
+    )
+  }
+
+  if (view === 'stats') {
+    return (
+      <StatsDashboard
+        projects={projects}
+        library={library}
+        onNavigate={setView}
+      />
+    )
+  }
+
   return (
-    <div className="flex min-h-svh p-6">
-      <div className="flex max-w-md min-w-0 flex-col gap-4 text-sm leading-loose">
-        <div>
-          <h1 className="font-medium">Project ready!</h1>
-          <p>You may now add components and start building.</p>
-          <p>We&apos;ve already added the button component for you.</p>
-          <Button className="mt-2">Button</Button>
-        </div>
-        <div className="text-muted-foreground font-mono text-xs">
-          (Press <kbd>d</kbd> to toggle dark mode)
-        </div>
-      </div>
-    </div>
+    <Dashboard
+      projects={projects}
+      library={library}
+      onSelectProject={goToProject}
+      onCreateProject={createProject}
+      onUpdateProject={updateProject}
+      onDeleteProject={handleDeleteProject}
+      onNavigate={setView}
+    />
   )
 }
