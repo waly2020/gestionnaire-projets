@@ -456,12 +456,13 @@ export function ProjectDetail({
         </div>
 
         {/* Pièces jointes — en dernier */}
-        <AttachmentsSection
-          attachments={project.attachments ?? []}
-          onAdd={(attachment) => onAddAttachment(project.id, attachment)}
-          onDelete={(attachmentId) => onDeleteAttachment(project.id, attachmentId)}
-        />
-      </div>
+        <div className="mt-6">
+          <AttachmentsSection
+            attachments={project.attachments ?? []}
+            onAdd={(attachment) => onAddAttachment(project.id, attachment)}
+            onDelete={(attachmentId) => onDeleteAttachment(project.id, attachmentId)}
+          />
+        </div>
 
       <AddTodoListModal
         open={addListOpen}
