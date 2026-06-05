@@ -125,7 +125,10 @@ export function ProjectDetail({
   }))
 
   // Toutes les listes disponibles comme destination pour un transfert de tâches
-  const allListTargets = project.todoLists.map((l) => ({ id: l.id, title: l.title }))
+  const allListTargets = project.todoLists.map((l) => {
+    const sp = subProjects.find((s) => s.id === l.subProjectId)
+    return { id: l.id, title: l.title, sectionLabel: isComposite ? (sp ? sp.name : 'Global') : undefined }
+  })
 
   const openAddList = (scopeId?: string) => {
     setAddListDefaultScope(scopeId)
@@ -515,7 +518,7 @@ function TodoSection({
   searchQuery: string
   filterCompletion: 'all' | 'active' | 'done'
   allSubProjects?: SubProject[]
-  allListTargets?: { id: string; title: string }[]
+  allListTargets?: { id: string; title: string; sectionLabel?: string }[]
   onToggleTodoItem: (projectId: string, listId: string, itemId: string) => void
   onAddTodoItem: (projectId: string, listId: string, text: string, priority: import('../types').ItemPriority) => void
   onUpdateTodoItem: (projectId: string, listId: string, itemId: string, data: { text?: string; priority?: import('../types').ItemPriority }) => void

@@ -21,7 +21,7 @@ interface Props {
   /** Targets pour déplacer la liste entière vers un autre composant */
   moveTargets?: MoveTarget[]
   /** Listes disponibles comme destination pour les tâches sélectionnées */
-  availableLists?: { id: string; title: string }[]
+  availableLists?: { id: string; title: string; sectionLabel?: string }[]
   onToggleItem: (listId: string, itemId: string) => void
   onAddItem: (listId: string, text: string, priority: ItemPriority) => void
   onUpdateItem: (listId: string, itemId: string, data: { text?: string; priority?: ItemPriority }) => void
@@ -226,7 +226,9 @@ export function TodoListView({
                   >
                     <option value="">Choisir une liste destination...</option>
                     {availableLists.map((l) => (
-                      <option key={l.id} value={l.id}>{l.title}</option>
+                      <option key={l.id} value={l.id}>
+                        {l.sectionLabel ? `${l.sectionLabel} › ${l.title}` : l.title}
+                      </option>
                     ))}
                   </select>
                   <Button
