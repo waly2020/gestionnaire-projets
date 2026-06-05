@@ -20,10 +20,12 @@ export function App() {
     duplicateProject,
     addTodoList,
     deleteTodoList,
+    transferTodoList,
     addTodoItem,
     toggleTodoItem,
     updateTodoItem,
     deleteTodoItem,
+    moveTodoItems,
     addAttachment,
     deleteAttachment,
   } = useProjects()
@@ -62,6 +64,8 @@ export function App() {
         onDeleteProject={handleDeleteProject}
         onAddTodoList={addTodoList}
         onDeleteTodoList={deleteTodoList}
+        onTransferTodoList={transferTodoList}
+        onMoveTodoItems={moveTodoItems}
         onAddTodoItem={addTodoItem}
         onToggleTodoItem={toggleTodoItem}
         onUpdateTodoItem={updateTodoItem}

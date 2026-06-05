@@ -133,6 +133,24 @@ export function useProjects() {
     [projects, persistAndSet]
   )
 
+  const transferTodoList = useCallback(
+    (projectId: string, listId: string, newSubProjectId: string | undefined) => {
+      const updated = projects.map((p) =>
+        p.id === projectId
+          ? {
+              ...p,
+              updatedAt: new Date().toISOString(),
+              todoLists: p.todoLists.map((l) =>
+                l.id === listId ? { ...l, subProjectId: newSubProjectId } : l
+              ),
+            }
+          : p
+      )
+      persistAndSet(updated)
+    },
+    [projects, persistAndSet]
+  )
+
   // --- Todo Items ---
   const addTodoItem = useCallback(
     (projectId: string, listId: string, text: string, priority: ItemPriority = 'medium') => {
@@ -235,6 +253,26 @@ export function useProjects() {
     [projects, persistAndSet]
   )
 
+  const moveTodoItems = useCallback(
+    (projectId: string, sourceListId: string, itemIds: string[], targetListId: string) => {
+      const updated = projects.map((p) => {
+        if (p.id !== projectId) return p
+        const itemsToMove = p.todoLists.find((l) => l.id === sourceListId)?.items.filter((i) => itemIds.includes(i.id)) ?? []
+        return {
+          ...p,
+          updatedAt: new Date().toISOString(),
+          todoLists: p.todoLists.map((l) => {
+            if (l.id === sourceListId) return { ...l, items: l.items.filter((i) => !itemIds.includes(i.id)) }
+            if (l.id === targetListId) return { ...l, items: [...l.items, ...itemsToMove] }
+            return l
+          }),
+        }
+      })
+      persistAndSet(updated)
+    },
+    [projects, persistAndSet]
+  )
+
   const addAttachment = useCallback(
     (projectId: string, attachment: Attachment) => {
       const updated = projects.map((p) =>
@@ -302,9 +340,11 @@ export function useProjects() {
     deleteAttachment,
     addTodoList,
     deleteTodoList,
+    transferTodoList,
     addTodoItem,
     toggleTodoItem,
     updateTodoItem,
     deleteTodoItem,
+    moveTodoItems,
   }
 }
