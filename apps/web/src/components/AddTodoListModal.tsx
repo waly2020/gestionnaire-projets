@@ -10,20 +10,24 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@workspace/ui/components/dialog'
-import { Upload, TextCursorInput, List, Plus, Trash2 } from 'lucide-react'
+import { Upload, TextCursorInput, List, Plus, Trash2, Globe, Layers } from 'lucide-react'
 import { parseTodoText, parseCsvText } from '../hooks/useProjects'
 import { cn } from '@workspace/ui/lib/utils'
+import type { SubProject } from '../types'
 
 type Tab = 'paste' | 'file' | 'manual'
 
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onSubmit: (data: { title: string; items: string[] }) => void
+  subProjects?: SubProject[]
+  defaultSubProjectId?: string
+  onSubmit: (data: { title: string; items: string[]; subProjectId?: string }) => void
 }
 
-export function AddTodoListModal({ open, onOpenChange, onSubmit }: Props) {
+export function AddTodoListModal({ open, onOpenChange, subProjects, defaultSubProjectId, onSubmit }: Props) {
   const [tab, setTab] = React.useState<Tab>('paste')
+  const [scopeId, setScopeId] = React.useState<string>(defaultSubProjectId ?? '')
   const [pasteText, setPasteText] = React.useState('')
   const [preview, setPreview] = React.useState<{ title: string; items: string[] } | null>(null)
   const [manualTitle, setManualTitle] = React.useState('')
@@ -31,16 +35,21 @@ export function AddTodoListModal({ open, onOpenChange, onSubmit }: Props) {
   const [fileError, setFileError] = React.useState('')
   const fileRef = React.useRef<HTMLInputElement>(null)
 
+  const isComposite = subProjects && subProjects.length > 0
+
   React.useEffect(() => {
-    if (!open) {
+    if (open) {
+      setScopeId(defaultSubProjectId ?? '')
+    } else {
       setPasteText('')
       setPreview(null)
       setManualTitle('')
       setManualItems([''])
       setFileError('')
       setTab('paste')
+      setScopeId('')
     }
-  }, [open])
+  }, [open, defaultSubProjectId])
 
   const parsePaste = () => {
     const result = parseTodoText(pasteText)
@@ -68,13 +77,14 @@ export function AddTodoListModal({ open, onOpenChange, onSubmit }: Props) {
     setManualItems((prev) => prev.filter((_, idx) => idx !== i))
 
   const handleSubmit = () => {
+    const subProjectId = scopeId === '' ? undefined : scopeId
     if (tab === 'manual') {
       const items = manualItems.filter((i) => i.trim())
       if (!manualTitle.trim() || items.length === 0) return
-      onSubmit({ title: manualTitle.trim(), items })
+      onSubmit({ title: manualTitle.trim(), items, subProjectId })
     } else if (preview) {
       if (!preview.title || preview.items.length === 0) return
-      onSubmit(preview)
+      onSubmit({ ...preview, subProjectId })
     }
     onOpenChange(false)
   }
@@ -90,12 +100,67 @@ export function AddTodoListModal({ open, onOpenChange, onSubmit }: Props) {
     { id: 'manual', label: 'Saisie manuelle', icon: <List className="h-4 w-4" /> },
   ]
 
+  const selectedSubProject = subProjects?.find((sp) => sp.id === scopeId)
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Ajouter une liste de tâches</DialogTitle>
         </DialogHeader>
+
+        {/* Sélecteur de portée — projets composites uniquement */}
+        {isComposite && (
+          <div className="flex flex-col gap-1.5 rounded-lg border bg-muted/40 p-3">
+            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Affecter à
+            </Label>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setScopeId('')}
+                className={cn(
+                  'flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm transition-colors',
+                  scopeId === ''
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'border-input bg-background hover:bg-muted'
+                )}
+              >
+                <Globe className="h-3.5 w-3.5" />
+                Global (projet entier)
+              </button>
+              {subProjects!.map((sp) => (
+                <button
+                  key={sp.id}
+                  type="button"
+                  onClick={() => setScopeId(sp.id)}
+                  className={cn(
+                    'flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm transition-colors',
+                    scopeId === sp.id
+                      ? 'border-primary bg-primary text-primary-foreground'
+                      : 'border-input bg-background hover:bg-muted'
+                  )}
+                >
+                  <Layers className="h-3.5 w-3.5" />
+                  {sp.name}
+                  <span className={cn('text-xs', scopeId === sp.id ? 'text-primary-foreground/70' : 'text-muted-foreground')}>
+                    · {sp.role}
+                  </span>
+                </button>
+              ))}
+            </div>
+            {selectedSubProject && (
+              <p className="text-xs text-muted-foreground">
+                Cette liste sera rattachée au composant <strong>{selectedSubProject.name}</strong> ({selectedSubProject.role}).
+              </p>
+            )}
+            {!selectedSubProject && (
+              <p className="text-xs text-muted-foreground">
+                Cette liste sera globale — visible dans la vue d'ensemble du projet.
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Tabs */}
         <div className="flex gap-1 rounded-lg bg-muted p-1">

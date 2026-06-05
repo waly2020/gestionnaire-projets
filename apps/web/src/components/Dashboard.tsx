@@ -6,7 +6,7 @@ import { Progress } from '@workspace/ui/components/progress'
 import {
   Globe, Smartphone, Layers, Monitor, Database, Settings, Palette, Box,
   Plus, Search, CheckSquare, FolderOpen, Clock, TrendingUp, Filter,
-  Calendar, MoreVertical, Edit2, Trash2, GitMerge,
+  Calendar, MoreVertical, Edit2, Trash2, GitMerge, Copy,
 } from 'lucide-react'
 import type { Project, ProjectStatus, ProjectType, Priority, Library } from '../types'
 import { CreateProjectModal } from './CreateProjectModal'
@@ -45,6 +45,7 @@ interface Props {
   onCreateProject: (data: Omit<Project, 'id' | 'createdAt' | 'updatedAt' | 'todoLists'>) => void
   onUpdateProject: (id: string, data: Partial<Project>) => void
   onDeleteProject: (id: string) => void
+  onDuplicateProject: (id: string) => void
   onNavigate: (view: AppView) => void
 }
 
@@ -55,6 +56,7 @@ export function Dashboard({
   onCreateProject,
   onUpdateProject,
   onDeleteProject,
+  onDuplicateProject,
   onNavigate,
 }: Props) {
   const [createOpen, setCreateOpen] = React.useState(false)
@@ -267,7 +269,7 @@ export function Dashboard({
                     {/* Context menu dropdown */}
                     {isMenuOpen && (
                       <div
-                        className="absolute right-3 top-12 z-20 rounded-lg border bg-popover shadow-lg p-1 min-w-[140px]"
+                        className="absolute right-3 top-12 z-20 rounded-lg border bg-popover shadow-lg p-1 min-w-37.5"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <button
@@ -276,6 +278,13 @@ export function Dashboard({
                         >
                           <Edit2 className="h-3.5 w-3.5" /> Modifier
                         </button>
+                        <button
+                          className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-sm hover:bg-muted"
+                          onClick={(e) => { e.stopPropagation(); onDuplicateProject(project.id); setMenuOpenId(null) }}
+                        >
+                          <Copy className="h-3.5 w-3.5" /> Dupliquer
+                        </button>
+                        <div className="my-1 h-px bg-border" />
                         {confirmDeleteId === project.id ? (
                           <div className="px-2 py-1">
                             <p className="text-xs text-muted-foreground mb-1">Confirmer la suppression ?</p>

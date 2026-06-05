@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import type { Project, TodoList, TodoItem, ItemPriority } from '../types'
+import type { Project, TodoList, TodoItem, ItemPriority, Attachment } from '../types'
 
 const STORAGE_KEY = 'pm_projects'
 
@@ -92,11 +92,12 @@ export function useProjects() {
 
   // --- Todo Lists ---
   const addTodoList = useCallback(
-    (projectId: string, data: { title: string; items: string[] }) => {
+    (projectId: string, data: { title: string; items: string[]; subProjectId?: string }) => {
       const list: TodoList = {
         id: generateId(),
         title: data.title,
         createdAt: new Date().toISOString(),
+        subProjectId: data.subProjectId,
         items: data.items.map((text) => ({
           id: generateId(),
           text,
@@ -234,11 +235,71 @@ export function useProjects() {
     [projects, persistAndSet]
   )
 
+  const addAttachment = useCallback(
+    (projectId: string, attachment: Attachment) => {
+      const updated = projects.map((p) =>
+        p.id === projectId
+          ? { ...p, attachments: [...(p.attachments ?? []), attachment], updatedAt: new Date().toISOString() }
+          : p
+      )
+      persistAndSet(updated)
+    },
+    [projects, persistAndSet]
+  )
+
+  const deleteAttachment = useCallback(
+    (projectId: string, attachmentId: string) => {
+      const updated = projects.map((p) =>
+        p.id === projectId
+          ? {
+              ...p,
+              attachments: (p.attachments ?? []).filter((a) => a.id !== attachmentId),
+              updatedAt: new Date().toISOString(),
+            }
+          : p
+      )
+      persistAndSet(updated)
+    },
+    [projects, persistAndSet]
+  )
+
+  const duplicateProject = useCallback(
+    (id: string) => {
+      const source = projects.find((p) => p.id === id)
+      if (!source) return
+      const now = new Date().toISOString()
+      const copy: Project = {
+        ...source,
+        id: generateId(),
+        name: `${source.name} (copie)`,
+        createdAt: now,
+        updatedAt: now,
+        todoLists: source.todoLists.map((l) => ({
+          ...l,
+          id: generateId(),
+          createdAt: now,
+          items: l.items.map((item) => ({
+            ...item,
+            id: generateId(),
+            completed: false,
+            completedAt: undefined,
+            createdAt: now,
+          })),
+        })),
+      }
+      persistAndSet([...projects, copy])
+    },
+    [projects, persistAndSet]
+  )
+
   return {
     projects,
     createProject,
     updateProject,
     deleteProject,
+    duplicateProject,
+    addAttachment,
+    deleteAttachment,
     addTodoList,
     deleteTodoList,
     addTodoItem,
