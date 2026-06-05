@@ -4,15 +4,18 @@ import { Input } from '@workspace/ui/components/input'
 import { Checkbox } from '@workspace/ui/components/checkbox'
 import { Progress } from '@workspace/ui/components/progress'
 import { Badge } from '@workspace/ui/components/badge'
-import { Trash2, Plus, ChevronDown, ChevronUp, Download } from 'lucide-react'
+import { Trash2, Plus, ChevronDown, ChevronUp, Download, Check, X } from 'lucide-react'
 import type { TodoList, TodoItem, ItemPriority } from '../types'
 import { cn } from '@workspace/ui/lib/utils'
 
 interface Props {
   list: TodoList
   projectId: string
+  searchQuery?: string
+  filterCompletion?: 'all' | 'active' | 'done'
   onToggleItem: (listId: string, itemId: string) => void
   onAddItem: (listId: string, text: string, priority: ItemPriority) => void
+  onUpdateItem: (listId: string, itemId: string, data: { text?: string; priority?: ItemPriority }) => void
   onDeleteItem: (listId: string, itemId: string) => void
   onDeleteList: (listId: string) => void
 }
@@ -39,7 +42,16 @@ function exportList(list: TodoList) {
   URL.revokeObjectURL(url)
 }
 
-export function TodoListView({ list, onToggleItem, onAddItem, onDeleteItem, onDeleteList }: Props) {
+export function TodoListView({
+  list,
+  searchQuery = '',
+  filterCompletion = 'all',
+  onToggleItem,
+  onAddItem,
+  onUpdateItem,
+  onDeleteItem,
+  onDeleteList,
+}: Props) {
   const [collapsed, setCollapsed] = React.useState(false)
   const [newText, setNewText] = React.useState('')
   const [newPriority, setNewPriority] = React.useState<ItemPriority>('medium')
@@ -48,6 +60,14 @@ export function TodoListView({ list, onToggleItem, onAddItem, onDeleteItem, onDe
   const total = list.items.length
   const done = list.items.filter((i) => i.completed).length
   const progress = total === 0 ? 0 : Math.round((done / total) * 100)
+
+  const isFiltered = searchQuery.trim() !== '' || filterCompletion !== 'all'
+  const visibleItems = list.items.filter((item) => {
+    if (filterCompletion === 'active' && item.completed) return false
+    if (filterCompletion === 'done' && !item.completed) return false
+    if (searchQuery.trim() && !item.text.toLowerCase().includes(searchQuery.trim().toLowerCase())) return false
+    return true
+  })
 
   const addItem = () => {
     const text = newText.trim()
@@ -99,15 +119,21 @@ export function TodoListView({ list, onToggleItem, onAddItem, onDeleteItem, onDe
         <>
           {/* Items */}
           <div className="divide-y">
-            {list.items.length === 0 && (
+            {total === 0 && (
               <p className="text-sm text-muted-foreground text-center py-6">Aucune tâche — ajoutez-en une ci-dessous</p>
             )}
-            {list.items.map((item) => (
+            {total > 0 && visibleItems.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                {isFiltered ? 'Aucune tâche ne correspond aux filtres' : 'Aucune tâche'}
+              </p>
+            )}
+            {visibleItems.map((item) => (
               <TodoItemRow
                 key={item.id}
                 item={item}
                 onToggle={() => onToggleItem(list.id, item.id)}
                 onDelete={() => onDeleteItem(list.id, item.id)}
+                onUpdate={(data) => onUpdateItem(list.id, item.id, data)}
               />
             ))}
           </div>
@@ -139,7 +165,73 @@ export function TodoListView({ list, onToggleItem, onAddItem, onDeleteItem, onDe
   )
 }
 
-function TodoItemRow({ item, onToggle, onDelete }: { item: TodoItem; onToggle: () => void; onDelete: () => void }) {
+function TodoItemRow({
+  item,
+  onToggle,
+  onDelete,
+  onUpdate,
+}: {
+  item: TodoItem
+  onToggle: () => void
+  onDelete: () => void
+  onUpdate: (data: { text?: string; priority?: ItemPriority }) => void
+}) {
+  const [editing, setEditing] = React.useState(false)
+  const [editText, setEditText] = React.useState(item.text)
+  const inputRef = React.useRef<HTMLInputElement>(null)
+
+  React.useEffect(() => {
+    if (editing) inputRef.current?.select()
+  }, [editing])
+
+  const startEditing = () => {
+    setEditText(item.text)
+    setEditing(true)
+  }
+
+  const commitEdit = () => {
+    const text = editText.trim()
+    if (text && text !== item.text) onUpdate({ text })
+    setEditing(false)
+  }
+
+  const cancelEdit = () => {
+    setEditText(item.text)
+    setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-3 px-4 py-2 bg-muted/50">
+        <Checkbox
+          checked={item.completed}
+          onCheckedChange={onToggle}
+          className="shrink-0"
+          id={`edit-${item.id}`}
+        />
+        <input
+          ref={inputRef}
+          value={editText}
+          onChange={(e) => setEditText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') { e.preventDefault(); commitEdit() }
+            if (e.key === 'Escape') cancelEdit()
+          }}
+          onBlur={commitEdit}
+          className="flex-1 text-sm bg-transparent outline-none border-b-2 border-primary py-0.5"
+        />
+        <div className="flex items-center gap-1 shrink-0">
+          <button onMouseDown={(e) => { e.preventDefault(); commitEdit() }} className="text-primary hover:text-primary/80">
+            <Check className="h-3.5 w-3.5" />
+          </button>
+          <button onMouseDown={(e) => { e.preventDefault(); cancelEdit() }} className="text-muted-foreground hover:text-foreground">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className={cn('flex items-start gap-3 px-4 py-2.5 group hover:bg-muted/30 transition-colors', item.completed && 'opacity-60')}>
       <Checkbox
@@ -150,7 +242,9 @@ function TodoItemRow({ item, onToggle, onDelete }: { item: TodoItem; onToggle: (
       />
       <label
         htmlFor={`item-${item.id}`}
-        className={cn('flex-1 text-sm leading-snug cursor-pointer', item.completed && 'line-through text-muted-foreground')}
+        onDoubleClick={startEditing}
+        title="Double-cliquer pour modifier"
+        className={cn('flex-1 text-sm leading-snug cursor-pointer select-none', item.completed && 'line-through text-muted-foreground')}
       >
         {item.text}
       </label>

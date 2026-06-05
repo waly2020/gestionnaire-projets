@@ -9,7 +9,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from '@workspace/ui/components/dialog'
 import {
   X, Plus, Check, Globe, Smartphone, Layers, Monitor, Database,
@@ -127,7 +126,7 @@ function LibraryChips({ label, items, selected, onToggle, getColor }: {
               onClick={() => onToggle(item.name)}
               className={cn(
                 'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium border transition-all',
-                sel ? 'text-white' : 'bg-transparent border-border text-muted-foreground hover:border-foreground hover:text-foreground'
+                sel ? 'text-white' : 'bg-background border-border text-foreground hover:border-primary/60 hover:bg-muted/60'
               )}
               style={sel && color ? { backgroundColor: color, borderColor: color } : sel ? { backgroundColor: '#6366f1', borderColor: '#6366f1' } : {}}
             >
@@ -168,10 +167,17 @@ function SubProjectForm({ sp, index, library, onChange, onRemove }: {
   ) ?? []
 
   return (
-    <div className="rounded-xl border bg-background overflow-hidden">
+    <div
+      className="rounded-xl border overflow-hidden"
+      style={sp.color ? { borderColor: sp.color + '28' } : {}}
+    >
       {/* En-tête composant */}
-      <div className="flex items-center justify-between px-4 py-2.5 bg-muted/40 border-b">
+      <div
+        className="flex items-center justify-between px-4 py-2.5 border-b"
+        style={sp.color ? { backgroundColor: sp.color + '22' } : { backgroundColor: 'hsl(var(--muted))' }}
+      >
         <div className="flex items-center gap-2">
+          {sp.color && <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: sp.color }} />}
           <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Composant {index + 1}</span>
           {sp.name && <span className="text-sm font-semibold">— {sp.name}</span>}
           {sp.role && <span className="text-xs text-muted-foreground">({sp.role})</span>}
@@ -187,7 +193,7 @@ function SubProjectForm({ sp, index, library, onChange, onRemove }: {
       </div>
 
       {expanded && (
-        <div className="p-4 flex flex-col gap-4">
+        <div className="p-4 flex flex-col gap-4 bg-background/55">
           {/* Nom + Rôle */}
           <div className="grid grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">
@@ -213,7 +219,7 @@ function SubProjectForm({ sp, index, library, onChange, onRemove }: {
                     'flex flex-col items-center justify-center gap-1 rounded-lg py-2 px-1 border text-[11px] font-medium transition-all',
                     sp.type === t
                       ? 'bg-primary text-primary-foreground border-primary'
-                      : 'border-border text-muted-foreground hover:border-primary/40 hover:text-foreground'
+                      : 'bg-background border-border text-muted-foreground hover:border-primary/40 hover:text-foreground'
                   )}
                 >
                   {TYPE_ICONS[t]}
@@ -320,8 +326,9 @@ export function CreateProjectModal({ open, onOpenChange, onSubmit, initialData, 
     set('tags', form.tags.includes(name) ? form.tags.filter((t) => t !== name) : [...form.tags, name])
 
   const addSubProject = () => {
-    const sp: SubProject = { id: generateId(), name: '', role: '', type: 'web', languages: [], frameworks: [], tools: [] }
-    set('subProjects', [...(form.subProjects ?? []), sp])
+    const color = PROJECT_COLORS[Math.floor(Math.random() * PROJECT_COLORS.length)]
+    const sp: SubProject = { id: generateId(), name: '', role: '', type: 'web', languages: [], frameworks: [], tools: [], color }
+    set('subProjects', [sp, ...(form.subProjects ?? [])])
   }
   const updateSubProject = (id: string, updated: SubProject) =>
     set('subProjects', (form.subProjects ?? []).map((sp) => sp.id === id ? updated : sp))
@@ -338,14 +345,17 @@ export function CreateProjectModal({ open, onOpenChange, onSubmit, initialData, 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {/* Largeur max 1500px, plein écran sur petits écrans */}
-      <DialogContent className="w-[95vw] max-w-[1500px] max-h-[92vh] overflow-y-auto p-0">
-        <DialogHeader className="px-8 pt-7 pb-2">
+      <DialogContent className="w-[95vw] max-w-[1500px] max-h-[92vh] overflow-hidden p-0 flex flex-col gap-0">
+        {/* Header fixe */}
+        <DialogHeader className="px-8 pt-7 pb-4 border-b shrink-0">
           <DialogTitle className="text-2xl">
             {mode === 'create' ? 'Nouveau projet' : 'Modifier le projet'}
           </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="px-8 pb-8 flex flex-col gap-0">
+        {/* Zone scrollable */}
+        <div className="flex-1 overflow-y-auto min-h-0">
+        <form id="project-form" onSubmit={handleSubmit} className="px-8 py-6 flex flex-col gap-0">
 
           {/* ══════════════════════════════════════════════
               SECTION 1 : IDENTITÉ
@@ -644,7 +654,7 @@ export function CreateProjectModal({ open, onOpenChange, onSubmit, initialData, 
                             onClick={() => toggleTag(badge.name)}
                             className={cn(
                               'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium border transition-all',
-                              sel ? 'text-white' : 'bg-transparent border-border text-muted-foreground hover:border-foreground hover:text-foreground'
+                              sel ? 'text-white' : 'bg-background border-border text-foreground hover:border-primary/60 hover:bg-muted/60'
                             )}
                             style={sel ? { backgroundColor: badge.color, borderColor: badge.color } : {}}
                           >
@@ -661,16 +671,18 @@ export function CreateProjectModal({ open, onOpenChange, onSubmit, initialData, 
             </div>
           </div>
 
-          {/* ── Footer ── */}
-          <DialogFooter className="pt-6 border-t mt-2">
-            <Button type="button" variant="outline" size="lg" onClick={() => onOpenChange(false)}>
-              Annuler
-            </Button>
-            <Button type="submit" size="lg">
-              {mode === 'create' ? 'Créer le projet' : 'Enregistrer les modifications'}
-            </Button>
-          </DialogFooter>
         </form>
+        </div>
+
+        {/* Bottom bar fixe */}
+        <div className="shrink-0 border-t bg-background px-8 py-4 flex items-center justify-end gap-3">
+          <Button type="button" variant="outline" size="lg" onClick={() => onOpenChange(false)}>
+            Annuler
+          </Button>
+          <Button type="submit" form="project-form" size="lg">
+            {mode === 'create' ? 'Créer le projet' : 'Enregistrer les modifications'}
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   )

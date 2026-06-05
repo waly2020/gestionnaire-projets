@@ -18,6 +18,19 @@ export interface TodoList {
   title: string
   createdAt: string
   items: TodoItem[]
+  subProjectId?: string  // undefined = liste globale au projet
+}
+
+// ─── Pièces jointes ──────────────────────────────────────────────────────────
+
+export interface Attachment {
+  id: string
+  name: string
+  title: string
+  description?: string
+  size: number
+  mimeType: string
+  createdAt: string
 }
 
 // ─── Référentiel centralisé ───────────────────────────────────────────────────
@@ -59,6 +72,7 @@ export interface SubProject {
   frameworks: string[]
   tools: string[]
   description?: string
+  color?: string
 }
 
 // ─── Projet ──────────────────────────────────────────────────────────────────
@@ -82,4 +96,5 @@ export interface Project {
   todoLists: TodoList[]
   isComposite?: boolean
   subProjects?: SubProject[]
+  attachments?: Attachment[]
 }

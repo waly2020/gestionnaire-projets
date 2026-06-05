@@ -17,11 +17,15 @@ export function App() {
     createProject,
     updateProject,
     deleteProject,
+    duplicateProject,
     addTodoList,
     deleteTodoList,
     addTodoItem,
     toggleTodoItem,
+    updateTodoItem,
     deleteTodoItem,
+    addAttachment,
+    deleteAttachment,
   } = useProjects()
 
   const {
@@ -60,7 +64,10 @@ export function App() {
         onDeleteTodoList={deleteTodoList}
         onAddTodoItem={addTodoItem}
         onToggleTodoItem={toggleTodoItem}
+        onUpdateTodoItem={updateTodoItem}
         onDeleteTodoItem={deleteTodoItem}
+        onAddAttachment={addAttachment}
+        onDeleteAttachment={deleteAttachment}
       />
     )
   }
@@ -102,6 +109,7 @@ export function App() {
       onCreateProject={createProject}
       onUpdateProject={updateProject}
       onDeleteProject={handleDeleteProject}
+      onDuplicateProject={duplicateProject}
       onNavigate={setView}
     />
   )
