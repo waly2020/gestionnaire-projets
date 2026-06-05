@@ -300,10 +300,6 @@ const defaultForm = (): ProjectFormData => ({
 export function CreateProjectModal({ open, onOpenChange, onSubmit, initialData, mode = 'create', library }: Props) {
   const [form, setForm] = React.useState<ProjectFormData>(() => ({ ...defaultForm(), ...initialData }))
 
-  React.useEffect(() => {
-    if (open) setForm({ ...defaultForm(), ...initialData })
-  }, [open, initialData])
-
   const set = <K extends keyof ProjectFormData>(key: K, value: ProjectFormData[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }))
 
@@ -345,7 +341,7 @@ export function CreateProjectModal({ open, onOpenChange, onSubmit, initialData, 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {/* Largeur max 1500px, plein écran sur petits écrans */}
-      <DialogContent className="w-[95vw] max-w-[1500px] max-h-[92vh] overflow-hidden p-0 flex flex-col gap-0">
+      <DialogContent className="w-[95vw] max-w-375 max-h-[92vh] overflow-hidden p-0 flex flex-col gap-0">
         {/* Header fixe */}
         <DialogHeader className="px-8 pt-7 pb-4 border-b shrink-0">
           <DialogTitle className="text-2xl">

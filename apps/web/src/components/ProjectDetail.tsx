@@ -61,6 +61,8 @@ interface Props {
   onDeleteProject: (id: string) => void
   onAddTodoList: (projectId: string, data: { title: string; items: string[]; subProjectId?: string }) => void
   onDeleteTodoList: (projectId: string, listId: string) => void
+  onTransferTodoList: (projectId: string, listId: string, newSubProjectId: string | undefined) => void
+  onMoveTodoItems: (projectId: string, sourceListId: string, itemIds: string[], targetListId: string) => void
   onAddTodoItem: (projectId: string, listId: string, text: string, priority: ItemPriority) => void
   onToggleTodoItem: (projectId: string, listId: string, itemId: string) => void
   onUpdateTodoItem: (projectId: string, listId: string, itemId: string, data: { text?: string; priority?: ItemPriority }) => void
@@ -96,6 +98,8 @@ export function ProjectDetail({
   onDeleteProject,
   onAddTodoList,
   onDeleteTodoList,
+  onTransferTodoList,
+  onMoveTodoItems,
   onAddTodoItem,
   onToggleTodoItem,
   onUpdateTodoItem,
@@ -106,6 +110,7 @@ export function ProjectDetail({
   const [addListOpen, setAddListOpen] = React.useState(false)
   const [addListDefaultScope, setAddListDefaultScope] = React.useState<string | undefined>(undefined)
   const [editOpen, setEditOpen] = React.useState(false)
+  const [editKey, setEditKey] = React.useState(0)
   const [confirmDelete, setConfirmDelete] = React.useState(false)
   const [taskSearch, setTaskSearch] = React.useState('')
   const [taskFilter, setTaskFilter] = React.useState<'all' | 'active' | 'done'>('all')
@@ -118,6 +123,9 @@ export function ProjectDetail({
     sp,
     lists: project.todoLists.filter((l) => l.subProjectId === sp.id),
   }))
+
+  // Toutes les listes disponibles comme destination pour un transfert de tâches
+  const allListTargets = project.todoLists.map((l) => ({ id: l.id, title: l.title }))
 
   const openAddList = (scopeId?: string) => {
     setAddListDefaultScope(scopeId)
@@ -154,7 +162,7 @@ export function ProjectDetail({
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <Button size="sm" variant="outline" onClick={() => setEditOpen(true)}>
+          <Button size="sm" variant="outline" onClick={() => { setEditKey(k => k + 1); setEditOpen(true) }}>
             <Edit2 className="h-4 w-4" /> Modifier
           </Button>
           {confirmDelete ? (
@@ -311,13 +319,6 @@ export function ProjectDetail({
           </div>
         )}
 
-        {/* Pièces jointes */}
-        <AttachmentsSection
-          attachments={project.attachments ?? []}
-          onAdd={(attachment) => onAddAttachment(project.id, attachment)}
-          onDelete={(attachmentId) => onDeleteAttachment(project.id, attachmentId)}
-        />
-
         {/* Todo Lists */}
         <div className="flex flex-col gap-4">
           {/* En-tête global */}
@@ -391,11 +392,13 @@ export function ProjectDetail({
                   projectId={project.id}
                   searchQuery={taskSearch}
                   filterCompletion={taskFilter}
+                  availableLists={allListTargets.filter((l) => l.id !== list.id)}
                   onToggleItem={(listId, itemId) => onToggleTodoItem(project.id, listId, itemId)}
                   onAddItem={(listId, text, priority) => onAddTodoItem(project.id, listId, text, priority)}
                   onUpdateItem={(listId, itemId, data) => onUpdateTodoItem(project.id, listId, itemId, data)}
                   onDeleteItem={(listId, itemId) => onDeleteTodoItem(project.id, listId, itemId)}
                   onDeleteList={(listId) => onDeleteTodoList(project.id, listId)}
+                  onMoveItems={(itemIds, targetListId) => onMoveTodoItems(project.id, list.id, itemIds, targetListId)}
                 />
               ))}
             </>
@@ -404,24 +407,7 @@ export function ProjectDetail({
           {/* Projet composite — affichage groupé */}
           {isComposite && (
             <div className="flex flex-col gap-6">
-              {/* Section globale */}
-              <TodoSection
-                label="Global"
-                sublabel="Tâches transverses au projet"
-                icon={<GitMerge className="h-3.5 w-3.5" />}
-                lists={globalLists}
-                projectId={project.id}
-                searchQuery={taskSearch}
-                filterCompletion={taskFilter}
-                onToggleTodoItem={onToggleTodoItem}
-                onAddTodoItem={onAddTodoItem}
-                onUpdateTodoItem={onUpdateTodoItem}
-                onDeleteTodoItem={onDeleteTodoItem}
-                onDeleteTodoList={onDeleteTodoList}
-                onAddList={() => openAddList(undefined)}
-              />
-
-              {/* Section par composant */}
+              {/* Sections par composant d'abord */}
               {subProjectGroups.map(({ sp, lists }) => (
                 <TodoSection
                   key={sp.id}
@@ -432,17 +418,49 @@ export function ProjectDetail({
                   projectId={project.id}
                   searchQuery={taskSearch}
                   filterCompletion={taskFilter}
+                  allSubProjects={subProjects}
+                  allListTargets={allListTargets}
                   onToggleTodoItem={onToggleTodoItem}
                   onAddTodoItem={onAddTodoItem}
                   onUpdateTodoItem={onUpdateTodoItem}
                   onDeleteTodoItem={onDeleteTodoItem}
                   onDeleteTodoList={onDeleteTodoList}
+                  onMoveList={(listId, spId) => onTransferTodoList(project.id, listId, spId)}
+                  onMoveTodoItems={(sourceListId, itemIds, targetListId) => onMoveTodoItems(project.id, sourceListId, itemIds, targetListId)}
                   onAddList={() => openAddList(sp.id)}
                 />
               ))}
+
+              {/* Section globale en dernier */}
+              <TodoSection
+                label="Global"
+                sublabel="Tâches transverses au projet"
+                icon={<GitMerge className="h-3.5 w-3.5" />}
+                lists={globalLists}
+                projectId={project.id}
+                searchQuery={taskSearch}
+                filterCompletion={taskFilter}
+                allSubProjects={subProjects}
+                allListTargets={allListTargets}
+                onToggleTodoItem={onToggleTodoItem}
+                onAddTodoItem={onAddTodoItem}
+                onUpdateTodoItem={onUpdateTodoItem}
+                onDeleteTodoItem={onDeleteTodoItem}
+                onDeleteTodoList={onDeleteTodoList}
+                onMoveList={(listId, spId) => onTransferTodoList(project.id, listId, spId)}
+                onMoveTodoItems={(sourceListId, itemIds, targetListId) => onMoveTodoItems(project.id, sourceListId, itemIds, targetListId)}
+                onAddList={() => openAddList(undefined)}
+              />
             </div>
           )}
         </div>
+
+        {/* Pièces jointes — en dernier */}
+        <AttachmentsSection
+          attachments={project.attachments ?? []}
+          onAdd={(attachment) => onAddAttachment(project.id, attachment)}
+          onDelete={(attachmentId) => onDeleteAttachment(project.id, attachmentId)}
+        />
       </div>
 
       <AddTodoListModal
@@ -454,6 +472,7 @@ export function ProjectDetail({
       />
 
       <CreateProjectModal
+        key={editKey}
         open={editOpen}
         onOpenChange={setEditOpen}
         mode="edit"
@@ -475,11 +494,15 @@ function TodoSection({
   projectId,
   searchQuery,
   filterCompletion,
+  allSubProjects,
+  allListTargets,
   onToggleTodoItem,
   onAddTodoItem,
   onUpdateTodoItem,
   onDeleteTodoItem,
   onDeleteTodoList,
+  onMoveList,
+  onMoveTodoItems,
   onAddList,
 }: {
   label: string
@@ -489,15 +512,26 @@ function TodoSection({
   projectId: string
   searchQuery: string
   filterCompletion: 'all' | 'active' | 'done'
+  allSubProjects?: SubProject[]
+  allListTargets?: { id: string; title: string }[]
   onToggleTodoItem: (projectId: string, listId: string, itemId: string) => void
   onAddTodoItem: (projectId: string, listId: string, text: string, priority: import('../types').ItemPriority) => void
   onUpdateTodoItem: (projectId: string, listId: string, itemId: string, data: { text?: string; priority?: import('../types').ItemPriority }) => void
   onDeleteTodoItem: (projectId: string, listId: string, itemId: string) => void
   onDeleteTodoList: (projectId: string, listId: string) => void
+  onMoveList?: (listId: string, newSubProjectId: string | undefined) => void
+  onMoveTodoItems?: (sourceListId: string, itemIds: string[], targetListId: string) => void
   onAddList: () => void
 }) {
   const totalItems = lists.flatMap((l) => l.items).length
   const doneItems = lists.flatMap((l) => l.items).filter((i) => i.completed).length
+
+  const moveTargets = allSubProjects
+    ? [
+        { id: undefined, label: 'Global' },
+        ...allSubProjects.map((sp) => ({ id: sp.id, label: sp.name })),
+      ]
+    : undefined
 
   return (
     <div className="flex flex-col gap-3">
@@ -538,11 +572,15 @@ function TodoSection({
             projectId={projectId}
             searchQuery={searchQuery}
             filterCompletion={filterCompletion}
+            moveTargets={moveTargets}
+            availableLists={allListTargets?.filter((l) => l.id !== list.id)}
             onToggleItem={(listId, itemId) => onToggleTodoItem(projectId, listId, itemId)}
             onAddItem={(listId, text, priority) => onAddTodoItem(projectId, listId, text, priority)}
             onUpdateItem={(listId, itemId, data) => onUpdateTodoItem(projectId, listId, itemId, data)}
             onDeleteItem={(listId, itemId) => onDeleteTodoItem(projectId, listId, itemId)}
             onDeleteList={(listId) => onDeleteTodoList(projectId, listId)}
+            onMove={onMoveList}
+            onMoveItems={onMoveTodoItems ? (itemIds, targetListId) => onMoveTodoItems(list.id, itemIds, targetListId) : undefined}
           />
         ))
       )}

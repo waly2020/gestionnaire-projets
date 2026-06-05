@@ -60,7 +60,9 @@ export function Dashboard({
   onNavigate,
 }: Props) {
   const [createOpen, setCreateOpen] = React.useState(false)
+  const [createKey, setCreateKey] = React.useState(0)
   const [editProject, setEditProject] = React.useState<Project | null>(null)
+  const [editKey, setEditKey] = React.useState(0)
   const [search, setSearch] = React.useState('')
   const [filterStatus, setFilterStatus] = React.useState<ProjectStatus | 'all'>('all')
   const [filterType, setFilterType] = React.useState<ProjectType | 'all'>('all')
@@ -133,7 +135,7 @@ export function Dashboard({
         currentView="dashboard"
         onNavigate={onNavigate}
         actions={
-          <Button onClick={() => setCreateOpen(true)}>
+          <Button onClick={() => { setCreateKey(k => k + 1); setCreateOpen(true) }}>
             <Plus className="h-4 w-4" /> Nouveau projet
           </Button>
         }
@@ -152,7 +154,7 @@ export function Dashboard({
 
         {/* Filters */}
         <div className="flex flex-wrap gap-2 mb-6">
-          <div className="relative flex-1 min-w-[200px]">
+          <div className="relative flex-1 min-w-50">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               value={search}
@@ -274,7 +276,7 @@ export function Dashboard({
                       >
                         <button
                           className="flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-sm hover:bg-muted"
-                          onClick={(e) => { e.stopPropagation(); setEditProject(project); setMenuOpenId(null) }}
+                          onClick={(e) => { e.stopPropagation(); setEditProject(project); setEditKey(k => k + 1); setMenuOpenId(null) }}
                         >
                           <Edit2 className="h-3.5 w-3.5" /> Modifier
                         </button>
@@ -393,6 +395,7 @@ export function Dashboard({
       </div>
 
       <CreateProjectModal
+        key={createKey}
         open={createOpen}
         onOpenChange={setCreateOpen}
         onSubmit={onCreateProject}
@@ -400,6 +403,7 @@ export function Dashboard({
       />
 
       <CreateProjectModal
+        key={editKey}
         open={!!editProject}
         onOpenChange={(open) => !open && setEditProject(null)}
         mode="edit"
