@@ -463,6 +463,7 @@ export function ProjectDetail({
             onDelete={(attachmentId) => onDeleteAttachment(project.id, attachmentId)}
           />
         </div>
+      </div>
 
       <AddTodoListModal
         open={addListOpen}
