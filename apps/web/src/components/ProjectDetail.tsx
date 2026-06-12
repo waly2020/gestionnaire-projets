@@ -5,7 +5,7 @@ import { Progress } from '@workspace/ui/components/progress'
 import {
   ArrowLeft, Edit2, Trash2, Globe, Smartphone, Layers, Monitor, Database,
   Settings, Palette, Box, Plus, Calendar, Tag, Code2, Wrench, Cpu,
-  GitMerge, Download, Search, Filter,
+  GitMerge, Download, Search, Filter, StickyNote,
 } from 'lucide-react'
 import { Input } from '@workspace/ui/components/input'
 import type { Project, ItemPriority, Library, SubProject, Attachment } from '../types'
@@ -13,6 +13,7 @@ import { TodoListView } from './TodoListView'
 import { AddTodoListModal } from './AddTodoListModal'
 import { CreateProjectModal } from './CreateProjectModal'
 import { AttachmentsSection } from './AttachmentsSection'
+import { ProjectNotesModal } from './ProjectNotesModal'
 import { cn } from '@workspace/ui/lib/utils'
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
@@ -111,6 +112,8 @@ export function ProjectDetail({
   const [addListDefaultScope, setAddListDefaultScope] = React.useState<string | undefined>(undefined)
   const [editOpen, setEditOpen] = React.useState(false)
   const [editKey, setEditKey] = React.useState(0)
+  const [notesOpen, setNotesOpen] = React.useState(false)
+  const [notesKey, setNotesKey] = React.useState(0)
   const [confirmDelete, setConfirmDelete] = React.useState(false)
   const [taskSearch, setTaskSearch] = React.useState('')
   const [taskFilter, setTaskFilter] = React.useState<'all' | 'active' | 'done'>('all')
@@ -165,6 +168,14 @@ export function ProjectDetail({
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => { setNotesKey(k => k + 1); setNotesOpen(true) }}
+            className={project.notes?.trim() ? 'text-primary border-primary/40' : ''}
+          >
+            <StickyNote className="h-4 w-4" /> Notes
+          </Button>
           <Button size="sm" variant="outline" onClick={() => { setEditKey(k => k + 1); setEditOpen(true) }}>
             <Edit2 className="h-4 w-4" /> Modifier
           </Button>
@@ -477,13 +488,22 @@ export function ProjectDetail({
       />
 
       <CreateProjectModal
-        key={editKey}
+        key={`edit-${editKey}`}
         open={editOpen}
         onOpenChange={setEditOpen}
         mode="edit"
         initialData={project}
         library={library}
         onSubmit={(data) => onUpdateProject(project.id, data)}
+      />
+
+      <ProjectNotesModal
+        key={`notes-${notesKey}`}
+        open={notesOpen}
+        onOpenChange={setNotesOpen}
+        projectName={project.name}
+        notes={project.notes ?? ''}
+        onSave={(notes) => onUpdateProject(project.id, { notes })}
       />
     </div>
   )

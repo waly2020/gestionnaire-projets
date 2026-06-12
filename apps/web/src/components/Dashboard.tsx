@@ -395,7 +395,7 @@ export function Dashboard({
       </div>
 
       <CreateProjectModal
-        key={createKey}
+        key={`create-${createKey}`}
         open={createOpen}
         onOpenChange={setCreateOpen}
         onSubmit={onCreateProject}
@@ -403,7 +403,7 @@ export function Dashboard({
       />
 
       <CreateProjectModal
-        key={editKey}
+        key={`edit-${editKey}`}
         open={!!editProject}
         onOpenChange={(open) => !open && setEditProject(null)}
         mode="edit"

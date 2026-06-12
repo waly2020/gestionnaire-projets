@@ -97,4 +97,5 @@ export interface Project {
   isComposite?: boolean
   subProjects?: SubProject[]
   attachments?: Attachment[]
+  notes?: string
 }
