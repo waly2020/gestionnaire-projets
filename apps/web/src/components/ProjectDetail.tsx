@@ -5,7 +5,7 @@ import { Progress } from '@workspace/ui/components/progress'
 import {
   ArrowLeft, Edit2, Trash2, Globe, Smartphone, Layers, Monitor, Database,
   Settings, Palette, Box, Plus, Calendar, Tag, Code2, Wrench, Cpu,
-  GitMerge, Download, Search, Filter, StickyNote,
+  GitMerge, Download, Search, Filter, StickyNote, FileText,
 } from 'lucide-react'
 import { Input } from '@workspace/ui/components/input'
 import type { Project, ItemPriority, Library, SubProject, Attachment } from '../types'
@@ -117,6 +117,19 @@ export function ProjectDetail({
   const [confirmDelete, setConfirmDelete] = React.useState(false)
   const [taskSearch, setTaskSearch] = React.useState('')
   const [taskFilter, setTaskFilter] = React.useState<'all' | 'active' | 'done'>('all')
+  const [exportingWord, setExportingWord] = React.useState(false)
+
+  const handleExportWord = async () => {
+    setExportingWord(true)
+    try {
+      const { exportProjectToWord } = await import('../lib/exportProjectWord')
+      await exportProjectToWord(project)
+    } catch (err) {
+      console.error('Échec de l\'export Word :', err)
+    } finally {
+      setExportingWord(false)
+    }
+  }
 
   const isComposite = project.isComposite && (project.subProjects ?? []).length > 0
   const subProjects = project.subProjects ?? []
@@ -168,6 +181,9 @@ export function ProjectDetail({
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          <Button size="sm" variant="outline" onClick={handleExportWord} disabled={exportingWord}>
+            <FileText className="h-4 w-4" /> {exportingWord ? 'Génération…' : 'Exporter (Word)'}
+          </Button>
           <Button
             size="sm"
             variant="outline"
