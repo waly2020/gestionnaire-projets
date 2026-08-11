@@ -10,10 +10,13 @@ import {
   WidthType,
   AlignmentType,
   BorderStyle,
+  HeightRule,
   LevelFormat,
   ImageRun,
+  Footer,
+  PageNumber,
 } from 'docx'
-import type { Project, SubProject, TodoList, Attachment, ItemPriority } from '../types'
+import type { Project, SubProject, TodoList, Attachment, ItemPriority, ProjectStatus, Priority } from '../types'
 import { getBlob } from '../hooks/useFiles'
 import { markdownToDocx } from './markdownToDocx'
 
@@ -29,42 +32,92 @@ const PRIORITY_LABELS: Record<string, string> = {
 }
 const ITEM_PRIORITY_LABELS: Record<ItemPriority, string> = { low: 'Basse', medium: 'Moyenne', high: 'Haute' }
 
-const HEADER_FILL = 'EEF2FF'
-const CELL_MARGINS = { top: 80, bottom: 80, left: 120, right: 120 }
+const STATUS_COLORS: Record<ProjectStatus, string> = { active: '15803D', paused: 'A16207', completed: '1D4ED8', archived: '64748B' }
+const PRIORITY_COLORS: Record<Priority, string> = { low: '15803D', medium: 'A16207', high: 'C2410C', critical: 'B91C1C' }
+const ITEM_PRIORITY_COLORS: Record<ItemPriority, string> = { low: '0369A1', medium: 'A16207', high: 'B91C1C' }
+
+// ─── Palette sobre : encre, gris, filets ───────────────────────────────────────
+
+const INK = '1F2937'
+const MUTED = '6B7280'
+const RULE = 'D1D5DB'
+const HAIRLINE = { style: BorderStyle.SINGLE, size: 4, color: RULE }
+const TABLE_HEAD_BG = '1F2937'
+const ZEBRA = 'F8FAFC'
+const CELL_MARGINS = { top: 90, bottom: 90, left: 130, right: 130 }
+const NONE_BORDER = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' }
+const NO_BORDERS = { top: NONE_BORDER, bottom: NONE_BORDER, left: NONE_BORDER, right: NONE_BORDER, insideHorizontal: NONE_BORDER, insideVertical: NONE_BORDER }
+
+function clean(hex: string): string {
+  return hex.replace('#', '').toUpperCase()
+}
+
+// ─── Titres de section numérotés ───────────────────────────────────────────────
+
+function makeSectionHeadings(accentHex: string) {
+  const accent = clean(accentHex)
+  let counter = 0
+  const h2 = (text: string) => {
+    counter += 1
+    return new Paragraph({
+      heading: HeadingLevel.HEADING_2,
+      border: { bottom: HAIRLINE },
+      spacing: { before: 380, after: 160 },
+      children: [
+        new TextRun({ text: String(counter).padStart(2, '0') + '   ', bold: true, color: accent, size: 26 }),
+        new TextRun({ text, bold: true, color: INK, size: 26 }),
+      ],
+    })
+  }
+  const h3 = (text: string, swatch?: string) =>
+    new Paragraph({
+      heading: HeadingLevel.HEADING_3,
+      spacing: { before: 260, after: 120 },
+      children: [
+        ...(swatch ? [new TextRun({ text: '■  ', color: clean(swatch), size: 20 })] : []),
+        new TextRun({ text, bold: true, color: INK, size: 22 }),
+      ],
+    })
+  return { h2, h3 }
+}
+function h4(text: string) {
+  return new Paragraph({
+    heading: HeadingLevel.HEADING_4,
+    spacing: { before: 200, after: 90 },
+    children: [new TextRun({ text, bold: true, color: INK, size: 20 })],
+  })
+}
 
 // ─── Petits constructeurs de mise en page ─────────────────────────────────────
 
-function h2(text: string) {
-  return new Paragraph({ heading: HeadingLevel.HEADING_2, text, spacing: { before: 260, after: 120 } })
-}
-function h3(text: string) {
-  return new Paragraph({ heading: HeadingLevel.HEADING_3, text, spacing: { before: 180, after: 100 } })
-}
-function h4(text: string) {
-  return new Paragraph({ heading: HeadingLevel.HEADING_4, text, spacing: { before: 140, after: 80 } })
+function spacer(after = 120) {
+  return new Paragraph({ text: '', spacing: { after } })
 }
 function bodyText(text: string, opts: { italics?: boolean; muted?: boolean } = {}) {
   const runs = text.split('\n').flatMap((line, i) => {
-    const run = new TextRun({ text: line, italics: opts.italics, color: opts.muted ? '64748B' : undefined })
+    const run = new TextRun({ text: line, italics: opts.italics, color: opts.muted ? MUTED : INK })
     return i === 0 ? [run] : [new TextRun({ text: '', break: 1 }), run]
   })
   return new Paragraph({ children: runs, spacing: { after: 120 } })
 }
 function labelValue(label: string, value: string) {
   return new Paragraph({
-    children: [new TextRun({ text: `${label} : `, bold: true }), new TextRun({ text: value })],
-    spacing: { after: 40 },
+    children: [new TextRun({ text: `${label} : `, bold: true, color: INK }), new TextRun({ text: value, color: INK })],
+    spacing: { after: 50 },
   })
 }
-function cell(text: string, opts: { widthPct?: number; header?: boolean; bold?: boolean; strike?: boolean; align?: (typeof AlignmentType)[keyof typeof AlignmentType] } = {}) {
+function cell(
+  text: string,
+  opts: { widthPct?: number; header?: boolean; bold?: boolean; strike?: boolean; color?: string; align?: (typeof AlignmentType)[keyof typeof AlignmentType]; fill?: string } = {}
+) {
   return new TableCell({
     width: opts.widthPct ? { size: opts.widthPct, type: WidthType.PERCENTAGE } : undefined,
-    shading: opts.header ? { fill: HEADER_FILL } : undefined,
+    shading: opts.header ? { fill: TABLE_HEAD_BG } : opts.fill ? { fill: opts.fill } : undefined,
     margins: CELL_MARGINS,
     children: [
       new Paragraph({
         alignment: opts.align,
-        children: [new TextRun({ text, bold: opts.bold ?? opts.header, strike: opts.strike })],
+        children: [new TextRun({ text, bold: opts.bold ?? opts.header, strike: opts.strike, color: opts.header ? 'FFFFFF' : (opts.color ?? INK) })],
       }),
     ],
   })
@@ -84,21 +137,114 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`
 }
 
+// ─── En-tête de document ────────────────────────────────────────────────────────
+
+function coverBlock(project: Project, subtitle: string): Paragraph[] {
+  return [
+    new Paragraph({
+      children: [new TextRun({ text: 'FICHE PROJET', bold: true, color: clean(project.color), size: 18 })],
+      spacing: { after: 100 },
+    }),
+    new Paragraph({
+      children: [new TextRun({ text: project.name, bold: true, color: INK, size: 60, font: 'Cambria' })],
+      border: { bottom: { style: BorderStyle.SINGLE, size: 20, color: clean(project.color), space: 12 } },
+      spacing: { after: 160 },
+    }),
+    new Paragraph({
+      children: [new TextRun({ text: subtitle, color: MUTED, size: 21 })],
+      spacing: { after: 40 },
+    }),
+    new Paragraph({
+      children: [new TextRun({ text: `Document généré automatiquement le ${new Date().toLocaleDateString('fr-FR')}`, italics: true, color: MUTED, size: 17 })],
+      spacing: { after: 260 },
+    }),
+  ]
+}
+
+// ─── Grille de statistiques (statut / priorité / dates) ───────────────────────
+
+function statGrid(cells: { label: string; value: string; color?: string }[]): Table {
+  const widthPct = Math.floor(100 / cells.length)
+  const borders = { top: HAIRLINE, bottom: HAIRLINE, left: HAIRLINE, right: HAIRLINE, insideHorizontal: HAIRLINE, insideVertical: HAIRLINE }
+  return new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    borders,
+    rows: [
+      new TableRow({
+        children: cells.map(
+          (c) =>
+            new TableCell({
+              width: { size: widthPct, type: WidthType.PERCENTAGE },
+              shading: { fill: ZEBRA },
+              margins: { top: 160, bottom: 160, left: 180, right: 180 },
+              children: [
+                new Paragraph({ children: [new TextRun({ text: c.label.toUpperCase(), size: 15, bold: true, color: MUTED })], spacing: { after: 50 } }),
+                new Paragraph({ children: [new TextRun({ text: c.value, size: 23, bold: true, color: c.color ?? INK })] }),
+              ],
+            })
+        ),
+      }),
+    ],
+  })
+}
+
+function progressSection(accentHex: string, progress: number, done: number, total: number): (Paragraph | Table)[] {
+  const accent = clean(accentHex)
+  const barCells = [
+    ...(progress > 0 ? [new TableCell({ width: { size: progress, type: WidthType.PERCENTAGE }, shading: { fill: accent }, children: [new Paragraph({ text: '' })] })] : []),
+    ...(progress < 100 ? [new TableCell({ width: { size: 100 - progress, type: WidthType.PERCENTAGE }, shading: { fill: 'E5E7EB' }, children: [new Paragraph({ text: '' })] })] : []),
+  ]
+  return [
+    new Paragraph({
+      children: [
+        new TextRun({ text: 'Progression globale', bold: true, color: INK }),
+        new TextRun({ text: `   ${progress} %`, bold: true, color: accent }),
+        new TextRun({ text: `   ·   ${done}/${total} tâches complétées`, color: MUTED }),
+      ],
+      spacing: { before: 260, after: 90 },
+    }),
+    new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      borders: NO_BORDERS,
+      rows: [new TableRow({ height: { value: 140, rule: HeightRule.EXACT }, children: barCells })],
+    }),
+  ]
+}
+
 // ─── Composants du projet (composite) ─────────────────────────────────────────
 
-function subProjectSection(sp: SubProject): (Paragraph | Table)[] {
-  const out: (Paragraph | Table)[] = [h3(`${sp.name || 'Composant sans nom'} — ${sp.role || 'Rôle non défini'}`)]
-  out.push(labelValue('Type', TYPE_LABELS[sp.type] ?? sp.type))
-  out.push(...techLines(sp.languages, sp.frameworks, sp.tools))
-  if (sp.description) out.push(bodyText(sp.description, { muted: true }))
-  return out
+function subProjectCard(sp: SubProject, fallbackColor: string): (Paragraph | Table)[] {
+  const swatch = sp.color ?? fallbackColor
+  const content: Paragraph[] = [
+    new Paragraph({
+      children: [
+        new TextRun({ text: '■  ', color: clean(swatch), size: 22 }),
+        new TextRun({ text: sp.name || 'Composant sans nom', bold: true, size: 23, color: INK }),
+        new TextRun({ text: `   —   ${sp.role || 'Rôle non défini'}`, color: MUTED, size: 19 }),
+      ],
+      spacing: { after: 60 },
+    }),
+    new Paragraph({
+      children: [new TextRun({ text: (TYPE_LABELS[sp.type] ?? sp.type).toUpperCase(), bold: true, size: 14, color: MUTED })],
+      spacing: { after: 110 },
+    }),
+    ...techLines(sp.languages, sp.frameworks, sp.tools),
+  ]
+  if (sp.description) content.push(bodyText(sp.description, { muted: true }))
+
+  const table = new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    borders: { top: HAIRLINE, bottom: HAIRLINE, left: HAIRLINE, right: HAIRLINE },
+    rows: [new TableRow({ children: [new TableCell({ margins: { top: 200, bottom: 200, left: 240, right: 240 }, children: content })] })],
+  })
+  return [table, spacer(180)]
 }
 
 // ─── Listes de tâches ──────────────────────────────────────────────────────────
 
 function todoListBlock(list: TodoList): (Paragraph | Table)[] {
   const done = list.items.filter((i) => i.completed).length
-  const out: (Paragraph | Table)[] = [h4(`${list.title} (${done}/${list.items.length})`)]
+  const out: (Paragraph | Table)[] = [h4(`${list.title}  ·  ${done}/${list.items.length}`)]
 
   if (list.items.length === 0) {
     out.push(bodyText('Aucune tâche dans cette liste.', { italics: true, muted: true }))
@@ -107,19 +253,20 @@ function todoListBlock(list: TodoList): (Paragraph | Table)[] {
 
   const header = new TableRow({
     tableHeader: true,
-    children: [cell('', { widthPct: 8, header: true }), cell('Tâche', { widthPct: 72, header: true }), cell('Priorité', { widthPct: 20, header: true })],
+    children: [cell('', { widthPct: 8, header: true }), cell('Tâche', { widthPct: 70, header: true }), cell('Priorité', { widthPct: 22, header: true })],
   })
   const rows = list.items.map(
-    (item) =>
+    (item, i) =>
       new TableRow({
         children: [
-          cell(item.completed ? '☑' : '☐', { widthPct: 8, align: AlignmentType.CENTER }),
-          cell(item.text, { widthPct: 72, strike: item.completed }),
-          cell(ITEM_PRIORITY_LABELS[item.priority], { widthPct: 20 }),
+          cell(item.completed ? '☑' : '☐', { widthPct: 8, align: AlignmentType.CENTER, fill: i % 2 ? ZEBRA : undefined }),
+          cell(item.text, { widthPct: 70, strike: item.completed, color: item.completed ? MUTED : undefined, fill: i % 2 ? ZEBRA : undefined }),
+          cell(ITEM_PRIORITY_LABELS[item.priority], { widthPct: 22, bold: true, color: ITEM_PRIORITY_COLORS[item.priority], fill: i % 2 ? ZEBRA : undefined }),
         ],
       })
   )
-  out.push(new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [header, ...rows] }))
+  out.push(new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, borders: { top: HAIRLINE, bottom: HAIRLINE, left: HAIRLINE, right: HAIRLINE, insideHorizontal: HAIRLINE, insideVertical: HAIRLINE }, rows: [header, ...rows] }))
+  out.push(spacer(160))
   return out
 }
 
@@ -158,7 +305,7 @@ async function attachmentImageBlock(attachment: Attachment): Promise<Paragraph[]
   const maxWidth = 420
   const scale = dims.width > maxWidth ? maxWidth / dims.width : 1
   return [
-    new Paragraph({ children: [new TextRun({ text: attachment.title, bold: true })], spacing: { before: 100, after: 60 } }),
+    new Paragraph({ children: [new TextRun({ text: attachment.title, bold: true, color: INK })], spacing: { before: 100, after: 60 } }),
     new Paragraph({
       children: [
         new ImageRun({
@@ -183,23 +330,45 @@ function attachmentsTable(attachments: Attachment[]): Table {
     ],
   })
   const rows = attachments.map(
-    (a) =>
+    (a, i) =>
       new TableRow({
         children: [
-          cell(a.title, { widthPct: 30 }),
-          cell(a.description ?? '—', { widthPct: 40 }),
-          cell(formatSize(a.size), { widthPct: 15 }),
-          cell(new Date(a.createdAt).toLocaleDateString('fr-FR'), { widthPct: 15 }),
+          cell(a.title, { widthPct: 30, fill: i % 2 ? ZEBRA : undefined }),
+          cell(a.description ?? '—', { widthPct: 40, fill: i % 2 ? ZEBRA : undefined }),
+          cell(formatSize(a.size), { widthPct: 15, fill: i % 2 ? ZEBRA : undefined }),
+          cell(new Date(a.createdAt).toLocaleDateString('fr-FR'), { widthPct: 15, fill: i % 2 ? ZEBRA : undefined }),
         ],
       })
   )
-  return new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [header, ...rows] })
+  return new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, borders: { top: HAIRLINE, bottom: HAIRLINE, left: HAIRLINE, right: HAIRLINE, insideHorizontal: HAIRLINE, insideVertical: HAIRLINE }, rows: [header, ...rows] })
+}
+
+// ─── Pied de page ───────────────────────────────────────────────────────────────
+
+function makeFooter(projectName: string): Footer {
+  return new Footer({
+    children: [
+      new Paragraph({
+        border: { top: HAIRLINE },
+        spacing: { before: 120 },
+        alignment: AlignmentType.CENTER,
+        children: [
+          new TextRun({ text: projectName, color: MUTED, size: 16 }),
+          new TextRun({ text: '   ·   Page ', color: MUTED, size: 16 }),
+          new TextRun({ children: [PageNumber.CURRENT], color: MUTED, size: 16 }),
+          new TextRun({ text: ' / ', color: MUTED, size: 16 }),
+          new TextRun({ children: [PageNumber.TOTAL_PAGES], color: MUTED, size: 16 }),
+        ],
+      }),
+    ],
+  })
 }
 
 // ─── Génération du document ────────────────────────────────────────────────────
 
 export async function exportProjectToWord(project: Project): Promise<void> {
   const children: (Paragraph | Table)[] = []
+  const { h2, h3 } = makeSectionHeadings(project.color)
 
   const isComposite = !!project.isComposite && (project.subProjects ?? []).length > 0
   const subProjects = project.subProjects ?? []
@@ -210,21 +379,18 @@ export async function exportProjectToWord(project: Project): Promise<void> {
   const progress = allItems.length === 0 ? 0 : Math.round((doneItems / allItems.length) * 100)
 
   // En-tête
-  children.push(
-    new Paragraph({
-      heading: HeadingLevel.TITLE,
-      text: project.name,
-      border: { bottom: { style: BorderStyle.SINGLE, size: 12, color: project.color.replace('#', '') } },
-      spacing: { after: 200 },
-    })
-  )
-  children.push(labelValue('Statut', STATUS_LABELS[project.status] ?? project.status))
-  children.push(labelValue('Priorité', PRIORITY_LABELS[project.priority] ?? project.priority))
-  children.push(labelValue('Type', isComposite ? `Composite (${subProjects.length} composants)` : TYPE_LABELS[project.type] ?? project.type))
-  children.push(labelValue('Démarré le', new Date(project.startDate).toLocaleDateString('fr-FR')))
-  if (project.dueDate) children.push(labelValue('Échéance', new Date(project.dueDate).toLocaleDateString('fr-FR')))
-  children.push(labelValue('Dernière mise à jour', new Date(project.updatedAt).toLocaleDateString('fr-FR')))
-  children.push(labelValue('Progression', `${progress} % (${doneItems}/${allItems.length} tâches complétées)`))
+  const subtitleParts = [isComposite ? `Projet composite  ·  ${subProjects.length} composants` : TYPE_LABELS[project.type] ?? project.type, STATUS_LABELS[project.status]]
+  children.push(...coverBlock(project, subtitleParts.join('   ·   ')))
+
+  // Grille de statistiques
+  const statCells = [
+    { label: 'Statut', value: STATUS_LABELS[project.status] ?? project.status, color: STATUS_COLORS[project.status] },
+    { label: 'Priorité', value: PRIORITY_LABELS[project.priority] ?? project.priority, color: PRIORITY_COLORS[project.priority] },
+    { label: 'Démarré le', value: new Date(project.startDate).toLocaleDateString('fr-FR') },
+    ...(project.dueDate ? [{ label: 'Échéance', value: new Date(project.dueDate).toLocaleDateString('fr-FR') }] : [{ label: 'Mis à jour le', value: new Date(project.updatedAt).toLocaleDateString('fr-FR') }]),
+  ]
+  children.push(statGrid(statCells))
+  children.push(...progressSection(project.color, progress, doneItems, allItems.length))
 
   // Description
   if (project.description) {
@@ -235,7 +401,7 @@ export async function exportProjectToWord(project: Project): Promise<void> {
   // Composants (projet composite)
   if (isComposite) {
     children.push(h2('Composants du projet'))
-    subProjects.forEach((sp) => children.push(...subProjectSection(sp)))
+    subProjects.forEach((sp) => children.push(...subProjectCard(sp, project.color)))
   }
 
   // Stack technologique globale
@@ -259,7 +425,7 @@ export async function exportProjectToWord(project: Project): Promise<void> {
     project.todoLists.forEach((list) => children.push(...todoListBlock(list)))
   } else {
     subProjectGroups.forEach(({ sp, lists }) => {
-      children.push(h3(`${sp.name} — ${sp.role}`))
+      children.push(h3(`${sp.name} — ${sp.role}`, sp.color ?? project.color))
       if (lists.length === 0) children.push(bodyText('Aucune liste pour ce composant.', { italics: true, muted: true }))
       else lists.forEach((list) => children.push(...todoListBlock(list)))
     })
@@ -301,7 +467,7 @@ export async function exportProjectToWord(project: Project): Promise<void> {
         },
       ],
     },
-    sections: [{ properties: {}, children }],
+    sections: [{ properties: {}, footers: { default: makeFooter(project.name) }, children }],
   })
 
   const blob = await Packer.toBlob(doc)

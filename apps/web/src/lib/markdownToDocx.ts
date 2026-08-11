@@ -6,7 +6,7 @@ import { Paragraph, TextRun, Table, TableRow, TableCell, HeadingLevel, WidthType
 // ProjectNotesModal pour le rendu WYSIWYG), qu'on parcourt pour produire des
 // Paragraph/Table docx équivalents.
 
-type InlineStyle = { bold?: boolean; italics?: boolean; strike?: boolean; code?: boolean }
+type InlineStyle = { bold?: boolean; italics?: boolean; strike?: boolean; code?: boolean; forcedColor?: string }
 
 const HEADING_BY_DEPTH: Record<number, (typeof HeadingLevel)[keyof typeof HeadingLevel]> = {
   1: HeadingLevel.HEADING_3,
@@ -32,13 +32,13 @@ function collectRuns(tokens: unknown[] | undefined, style: InlineStyle, runs: Te
         collectRuns(t.tokens, { ...style, strike: true }, runs)
         break
       case 'codespan':
-        runs.push(new TextRun({ text: t.text ?? '', font: 'Consolas', shading: { type: ShadingType.CLEAR, fill: 'F1F5F9' } }))
+        runs.push(new TextRun({ text: t.text ?? '', font: 'Consolas', color: style.forcedColor, shading: style.forcedColor ? undefined : { type: ShadingType.CLEAR, fill: 'F1F5F9' } }))
         break
       case 'link':
       case 'image':
         collectRuns(t.tokens && t.tokens.length > 0 ? t.tokens : undefined, style, runs)
         if (!t.tokens || t.tokens.length === 0) {
-          runs.push(new TextRun({ text: t.text ?? '', bold: style.bold, italics: style.italics, strike: style.strike }))
+          runs.push(new TextRun({ text: t.text ?? '', bold: style.bold, italics: style.italics, strike: style.strike, color: style.forcedColor }))
         }
         break
       case 'br':
@@ -47,18 +47,18 @@ function collectRuns(tokens: unknown[] | undefined, style: InlineStyle, runs: Te
       case 'text':
       case 'escape':
         if (t.tokens && t.tokens.length > 0) collectRuns(t.tokens, style, runs)
-        else runs.push(new TextRun({ text: t.text ?? t.raw ?? '', bold: style.bold, italics: style.italics, strike: style.strike, font: style.code ? 'Consolas' : undefined }))
+        else runs.push(new TextRun({ text: t.text ?? t.raw ?? '', bold: style.bold, italics: style.italics, strike: style.strike, color: style.forcedColor, font: style.code ? 'Consolas' : undefined }))
         break
       default:
         if (t.tokens) collectRuns(t.tokens, style, runs)
-        else if (t.text) runs.push(new TextRun({ text: t.text, bold: style.bold, italics: style.italics, strike: style.strike }))
+        else if (t.text) runs.push(new TextRun({ text: t.text, bold: style.bold, italics: style.italics, strike: style.strike, color: style.forcedColor }))
     }
   }
 }
 
-function inlineToRuns(tokens: unknown[] | undefined): TextRun[] {
+function inlineToRuns(tokens: unknown[] | undefined, baseStyle: InlineStyle = {}): TextRun[] {
   const runs: TextRun[] = []
-  collectRuns(tokens, {}, runs)
+  collectRuns(tokens, baseStyle, runs)
   return runs.length > 0 ? runs : [new TextRun({ text: '' })]
 }
 
@@ -156,18 +156,25 @@ function walkBlocks(tokens: unknown[], out: (Paragraph | Table)[]): void {
       case 'table': {
         const header = (t.header ?? []) as { tokens?: unknown[] }[]
         const rows = (t.rows ?? []) as { tokens?: unknown[] }[][]
-        const makeCell = (cell: { tokens?: unknown[] }, isHeader: boolean) =>
+        const hairline = { style: BorderStyle.SINGLE, size: 4, color: 'D1D5DB' }
+        const makeCell = (cell: { tokens?: unknown[] }, isHeader: boolean, rowIndex: number) =>
           new TableCell({
             width: { size: Math.floor(100 / Math.max(header.length, 1)), type: WidthType.PERCENTAGE },
-            shading: isHeader ? { fill: 'EEF2FF' } : undefined,
-            children: [new Paragraph({ children: inlineToRuns(cell.tokens) })],
+            shading: isHeader ? { fill: '1F2937' } : rowIndex % 2 ? { fill: 'F8FAFC' } : undefined,
+            margins: { top: 90, bottom: 90, left: 130, right: 130 },
+            children: [
+              new Paragraph({
+                children: inlineToRuns(cell.tokens, isHeader ? { bold: true, forcedColor: 'FFFFFF' } : {}),
+              }),
+            ],
           })
         out.push(
           new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
+            borders: { top: hairline, bottom: hairline, left: hairline, right: hairline, insideHorizontal: hairline, insideVertical: hairline },
             rows: [
-              new TableRow({ children: header.map((c) => makeCell(c, true)) }),
-              ...rows.map((row) => new TableRow({ children: row.map((c) => makeCell(c, false)) })),
+              new TableRow({ tableHeader: true, children: header.map((c) => makeCell(c, true, 0)) }),
+              ...rows.map((row, i) => new TableRow({ children: row.map((c) => makeCell(c, false, i + 1)) })),
             ],
           })
         )
