@@ -18,6 +18,7 @@ export function App() {
     updateProject,
     deleteProject,
     duplicateProject,
+    importProjects,
     addTodoList,
     deleteTodoList,
     transferTodoList,
@@ -114,6 +115,7 @@ export function App() {
       onUpdateProject={updateProject}
       onDeleteProject={handleDeleteProject}
       onDuplicateProject={duplicateProject}
+      onImportProjects={importProjects}
       onNavigate={setView}
     />
   )
