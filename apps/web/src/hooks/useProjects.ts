@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import type { Project, TodoList, TodoItem, ItemPriority, Attachment } from '../types'
+import type { Project, TodoList, TodoItem, ItemPriority, Attachment, SubProject } from '../types'
 
 const STORAGE_KEY = 'pm_projects'
 
@@ -18,6 +18,60 @@ function load(): Project[] {
 
 function save(projects: Project[]): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(projects))
+}
+
+export interface ImportProjectsResult {
+  imported: number
+  skipped: number
+}
+
+// Normalise un projet importé depuis un JSON externe : régénère tous les
+// identifiants internes (projet, composants, listes, tâches) pour éviter
+// toute collision avec les données déjà présentes, et remappe les
+// références subProjectId en conséquence. Les identifiants de pièces
+// jointes sont conservés (ils pointent vers des blobs IndexedDB qui ne
+// sont pas inclus dans l'export JSON).
+function normalizeImportedProject(raw: unknown): Project | null {
+  if (!raw || typeof raw !== 'object') return null
+  const p = raw as Partial<Project>
+  if (typeof p.name !== 'string' || !p.name.trim() || !Array.isArray(p.todoLists)) return null
+
+  const now = new Date().toISOString()
+  const subProjectIdMap = new Map<string, string>()
+  const subProjects: SubProject[] | undefined = Array.isArray(p.subProjects)
+    ? p.subProjects.map((sp) => {
+        const newId = generateId()
+        if (sp?.id) subProjectIdMap.set(sp.id, newId)
+        return { ...sp, id: newId }
+      })
+    : undefined
+
+  const todoLists: TodoList[] = p.todoLists.map((list) => ({
+    ...list,
+    id: generateId(),
+    subProjectId: list.subProjectId ? subProjectIdMap.get(list.subProjectId) : undefined,
+    items: Array.isArray(list.items) ? list.items.map((item) => ({ ...item, id: generateId() })) : [],
+  }))
+
+  return {
+    ...p,
+    id: generateId(),
+    name: p.name,
+    description: p.description ?? '',
+    status: p.status ?? 'active',
+    priority: p.priority ?? 'medium',
+    type: p.type ?? 'other',
+    color: p.color ?? '#6366f1',
+    languages: Array.isArray(p.languages) ? p.languages : [],
+    frameworks: Array.isArray(p.frameworks) ? p.frameworks : [],
+    tools: Array.isArray(p.tools) ? p.tools : [],
+    tags: Array.isArray(p.tags) ? p.tags : [],
+    startDate: p.startDate ?? now,
+    createdAt: p.createdAt ?? now,
+    updatedAt: now,
+    todoLists,
+    subProjects,
+  }
 }
 
 export function parseTodoText(text: string): { title: string; items: string[] } {
@@ -330,12 +384,22 @@ export function useProjects() {
     [projects, persistAndSet]
   )
 
+  const importProjects = useCallback(
+    (rawProjects: unknown[]): ImportProjectsResult => {
+      const normalized = rawProjects.map(normalizeImportedProject).filter((p): p is Project => p !== null)
+      if (normalized.length > 0) persistAndSet([...projects, ...normalized])
+      return { imported: normalized.length, skipped: rawProjects.length - normalized.length }
+    },
+    [projects, persistAndSet]
+  )
+
   return {
     projects,
     createProject,
     updateProject,
     deleteProject,
     duplicateProject,
+    importProjects,
     addAttachment,
     deleteAttachment,
     addTodoList,

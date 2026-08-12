@@ -6,13 +6,25 @@ import { Progress } from '@workspace/ui/components/progress'
 import {
   Globe, Smartphone, Layers, Monitor, Database, Settings, Palette, Box,
   Plus, Search, CheckSquare, FolderOpen, Clock, TrendingUp, Filter,
-  Calendar, MoreVertical, Edit2, Trash2, GitMerge, Copy,
+  Calendar, MoreVertical, Edit2, Trash2, GitMerge, Copy, Download, Upload,
 } from 'lucide-react'
 import type { Project, ProjectStatus, ProjectType, Priority, Library } from '../types'
+import type { ImportProjectsResult } from '../hooks/useProjects'
 import { CreateProjectModal } from './CreateProjectModal'
 import { NavHeader } from './NavHeader'
 import { cn } from '@workspace/ui/lib/utils'
 import type { AppView } from '../App'
+
+function exportProjectsToJson(projects: Project[]) {
+  const payload = { version: 1, exportedAt: new Date().toISOString(), projects }
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `projets_export_${new Date().toISOString().slice(0, 10)}.json`
+  a.click()
+  URL.revokeObjectURL(url)
+}
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
   web: <Globe className="h-4 w-4" />,
@@ -46,6 +58,7 @@ interface Props {
   onUpdateProject: (id: string, data: Partial<Project>) => void
   onDeleteProject: (id: string) => void
   onDuplicateProject: (id: string) => void
+  onImportProjects: (rawProjects: unknown[]) => ImportProjectsResult
   onNavigate: (view: AppView) => void
 }
 
@@ -57,6 +70,7 @@ export function Dashboard({
   onUpdateProject,
   onDeleteProject,
   onDuplicateProject,
+  onImportProjects,
   onNavigate,
 }: Props) {
   const [createOpen, setCreateOpen] = React.useState(false)
@@ -64,6 +78,8 @@ export function Dashboard({
   const [editProject, setEditProject] = React.useState<Project | null>(null)
   const [editKey, setEditKey] = React.useState(0)
   const [search, setSearch] = React.useState('')
+  const importFileRef = React.useRef<HTMLInputElement>(null)
+  const [importFeedback, setImportFeedback] = React.useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [filterStatus, setFilterStatus] = React.useState<ProjectStatus | 'all'>('all')
   const [filterType, setFilterType] = React.useState<ProjectType | 'all'>('all')
   const [filterPriority, setFilterPriority] = React.useState<Priority | 'all'>('all')
@@ -123,6 +139,38 @@ export function Dashboard({
     setMenuOpenId(null)
   }
 
+  const showImportFeedback = (feedback: { type: 'success' | 'error'; text: string }) => {
+    setImportFeedback(feedback)
+    setTimeout(() => setImportFeedback(null), 5000)
+  }
+
+  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      try {
+        const parsed = JSON.parse(ev.target?.result as string)
+        const rawProjects = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.projects) ? parsed.projects : null
+        if (!rawProjects) throw new Error('format invalide')
+        const result = onImportProjects(rawProjects)
+        if (result.imported === 0) {
+          showImportFeedback({ type: 'error', text: 'Aucun projet valide trouvé dans ce fichier.' })
+        } else {
+          showImportFeedback({
+            type: 'success',
+            text: `${result.imported} projet${result.imported > 1 ? 's' : ''} importé${result.imported > 1 ? 's' : ''}${result.skipped > 0 ? `, ${result.skipped} ignoré(s)` : ''}.`,
+          })
+        }
+      } catch {
+        showImportFeedback({ type: 'error', text: "Ce fichier n'est pas un export JSON valide." })
+      }
+    }
+    reader.onerror = () => showImportFeedback({ type: 'error', text: 'Erreur de lecture du fichier.' })
+    reader.readAsText(file)
+  }
+
   React.useEffect(() => {
     const close = () => { setMenuOpenId(null); setConfirmDeleteId(null) }
     window.addEventListener('click', close)
@@ -135,13 +183,34 @@ export function Dashboard({
         currentView="dashboard"
         onNavigate={onNavigate}
         actions={
-          <Button onClick={() => { setCreateKey(k => k + 1); setCreateOpen(true) }}>
-            <Plus className="h-4 w-4" /> Nouveau projet
-          </Button>
+          <>
+            <input ref={importFileRef} type="file" accept=".json,application/json" className="hidden" onChange={handleImportFile} />
+            <Button variant="outline" onClick={() => importFileRef.current?.click()}>
+              <Upload className="h-4 w-4" /> Importer (JSON)
+            </Button>
+            <Button variant="outline" onClick={() => exportProjectsToJson(projects)} disabled={projects.length === 0}>
+              <Download className="h-4 w-4" /> Exporter (JSON)
+            </Button>
+            <Button onClick={() => { setCreateKey(k => k + 1); setCreateOpen(true) }}>
+              <Plus className="h-4 w-4" /> Nouveau projet
+            </Button>
+          </>
         }
       />
 
       <div className="flex-1 p-6 max-w-7xl mx-auto w-full">
+        {importFeedback && (
+          <div
+            className={cn(
+              'mb-4 rounded-lg border px-3 py-2 text-sm',
+              importFeedback.type === 'success'
+                ? 'border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-400'
+                : 'border-destructive/30 bg-destructive/10 text-destructive'
+            )}
+          >
+            {importFeedback.text}
+          </div>
+        )}
         {/* Stats */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-6">
           <StatCard icon={<FolderOpen className="h-5 w-5" />} label="Total projets" value={stats.total} color="text-primary" />
